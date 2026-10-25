@@ -177,6 +177,7 @@ export default function PelangganPage() {
                 <tr className="border-b border-gray-700 bg-gray-800/50">
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Pelanggan</th>
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">PS</th>
+                  <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Waktu</th>
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Mulai</th>
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Selesai</th>
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Total</th>
@@ -196,6 +197,11 @@ export default function PelangganPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-purple-400 font-medium">{p.ps_units?.nama}</td>
+                    <td className="px-4 py-3">
+                      <span className="bg-purple-900/30 text-purple-300 border border-purple-700 px-2 py-1 rounded-lg text-sm font-medium">
+                        {p.jumlah_jam} jam
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-gray-300 text-sm">{formatDateTime(p.jam_mulai)}</td>
                     <td className="px-4 py-3 text-gray-300 text-sm">{formatDateTime(p.jam_selesai)}</td>
                     <td className="px-4 py-3 text-white font-medium">{formatRupiah(p.total)}</td>
