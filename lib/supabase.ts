@@ -10,6 +10,7 @@ export type Karyawan = {
   nama: string
   no_telepon: string
   komisi_persen: number
+  link_token: string | null
   created_at: string
 }
 

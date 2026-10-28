@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Sidebar from '@/components/Sidebar'
+import { Suspense } from 'react'
 
 export const metadata: Metadata = {
   title: 'Rental PS',
@@ -12,7 +13,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="id">
       <body className="bg-gray-950 text-white min-h-screen">
         <div className="flex min-h-screen">
-          <Sidebar />
+          <Suspense fallback={null}>
+            <Sidebar />
+          </Suspense>
           {/* md:ml-64 untuk desktop, mobile full width */}
           <main className="flex-1 md:ml-64 p-4 md:p-6 min-w-0">
             {children}

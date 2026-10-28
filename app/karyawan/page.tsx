@@ -29,6 +29,7 @@ export default function KaryawanPage() {
   const [form, setForm] = useState({ nama: '', no_telepon: '', komisi_persen: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [generatingToken, setGeneratingToken] = useState<string | null>(null)
 
   const fetchKaryawan = useCallback(async () => {
     setLoading(true)
@@ -36,6 +37,32 @@ export default function KaryawanPage() {
     if (data) setKaryawanList(data)
     setLoading(false)
   }, [])
+
+  useEffect(() => { fetchKaryawan() }, [fetchKaryawan])
+
+  const generateToken = () => {
+    const arr = new Uint8Array(24)
+    crypto.getRandomValues(arr)
+    return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
+  }
+
+  const handleGenerateLink = async (k: Karyawan) => {
+    setGeneratingToken(k.id)
+    const token = generateToken()
+    const { error } = await supabase.from('karyawan').update({ link_token: token }).eq('id', k.id)
+    if (error) { addToast('Gagal membuat link', 'error') }
+    else {
+      await fetchKaryawan()
+      addToast('Link berhasil dibuat ✅', 'success')
+    }
+    setGeneratingToken(null)
+  }
+
+  const handleCopyLink = (token: string) => {
+    const url = `${window.location.origin}/komisi/${token}`
+    navigator.clipboard.writeText(url)
+    addToast('Link berhasil disalin 📋', 'success')
+  }
 
   useEffect(() => { fetchKaryawan() }, [fetchKaryawan])
 
@@ -196,7 +223,7 @@ export default function KaryawanPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-700 bg-gray-800/50">
-                  {['ID', 'Nama', 'No. Telepon', 'Komisi', 'Aksi'].map(h => (
+                  {['ID', 'Nama', 'No. Telepon', 'Komisi', 'Link Komisi', 'Aksi'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-gray-400 text-sm font-medium">{h}</th>
                   ))}
                 </tr>
@@ -213,6 +240,50 @@ export default function KaryawanPage() {
                       <span className="bg-green-900/30 text-green-400 border border-green-700 px-2 py-1 rounded-lg text-sm font-medium">
                         {k.komisi_persen}%
                       </span>
+                    </td>
+                    {/* Link Komisi */}
+                    <td className="px-4 py-3">
+                      {k.link_token ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-gray-500 text-xs font-mono bg-gray-800 px-2 py-1 rounded-lg truncate max-w-[100px]">
+                            ...{k.link_token.slice(-8)}
+                          </span>
+                          <button
+                            onClick={() => handleCopyLink(k.link_token!)}
+                            title="Salin link"
+                            className="p-1.5 text-purple-400 hover:bg-purple-900/30 rounded-lg transition-colors active:scale-90"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleGenerateLink(k)}
+                            disabled={generatingToken === k.id}
+                            title="Reset link"
+                            className="p-1.5 text-yellow-400 hover:bg-yellow-900/30 rounded-lg transition-colors active:scale-90"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleGenerateLink(k)}
+                          disabled={generatingToken === k.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors active:scale-95"
+                        >
+                          {generatingToken === k.id ? (
+                            <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                          ) : (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                            </svg>
+                          )}
+                          Buat Link
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
