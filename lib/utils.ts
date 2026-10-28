@@ -8,13 +8,17 @@ export function formatRupiah(amount: number): string {
 
 export function formatDateTime(dateStr: string): string {
   const date = new Date(dateStr)
-  return new Intl.DateTimeFormat('id-ID', {
+  const tanggal = new Intl.DateTimeFormat('id-ID', {
     day: '2-digit',
-    month: '2-digit',
+    month: 'short',
     year: 'numeric',
+  }).format(date)
+  const jam = new Intl.DateTimeFormat('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   }).format(date)
+  return `${tanggal} ${jam}`
 }
 
 export function hitungJamSelesai(jamMulai: Date, jumlahJam: number): Date {

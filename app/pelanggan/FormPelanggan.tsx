@@ -21,8 +21,9 @@ export default function FormPelanggan({ editData, karyawanList, psUnits, onSucce
     metode_bayar: 'cash' as 'cash' | 'qris',
     karyawan_id: '',
   })
-  const [identitasFile, setIdentitasFile] = useState<File | null>(null)
-  const [identitasPreview, setIdentitasPreview] = useState<string | null>(null)
+  const [identitasFiles, setIdentitasFiles] = useState<File[]>([])
+  const [identitasPreviews, setIdentitasPreviews] = useState<string[]>([])
+  const [existingUrls, setExistingUrls] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -43,16 +44,40 @@ export default function FormPelanggan({ editData, karyawanList, psUnits, onSucce
         metode_bayar: editData.metode_bayar,
         karyawan_id: editData.karyawan_id,
       })
-      if (editData.identitas_url) setIdentitasPreview(editData.identitas_url)
+      if (editData.identitas_url) {
+        const urls = Array.isArray(editData.identitas_url)
+          ? editData.identitas_url
+          : [editData.identitas_url]
+        setExistingUrls(urls)
+      }
     }
   }, [editData])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setIdentitasFile(file)
-    const url = URL.createObjectURL(file)
-    setIdentitasPreview(url)
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
+    setIdentitasFiles(prev => [...prev, ...files])
+    const previews = files.map(f => URL.createObjectURL(f))
+    setIdentitasPreviews(prev => [...prev, ...previews])
+    // Reset input agar file yang sama bisa dipilih ulang
+    e.target.value = ''
+  }
+
+  const removeNewFile = (index: number) => {
+    setIdentitasFiles(prev => prev.filter((_, i) => i !== index))
+    setIdentitasPreviews(prev => {
+      URL.revokeObjectURL(prev[index])
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
+  const removeExistingUrl = (index: number) => {
+    setExistingUrls(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const isVideo = (src: string, file?: File) => {
+    if (file) return file.type.startsWith('video')
+    return src.match(/\.(mp4|webm|mov|avi)$/i) !== null
   }
 
   const validate = () => {
@@ -72,18 +97,23 @@ export default function FormPelanggan({ editData, karyawanList, psUnits, onSucce
     setLoading(true)
 
     try {
-      let identitas_url = editData?.identitas_url ?? null
+      // Mulai dari URL yang sudah ada (tidak dihapus user)
+      let identitas_url: string[] = [...existingUrls]
 
-      // Upload identitas jika ada file baru
-      if (identitasFile) {
-        const ext = identitasFile.name.split('.').pop()
-        const fileName = `${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('identitas')
-          .upload(fileName, identitasFile, { upsert: true })
-        if (uploadError) throw uploadError
-        const { data } = supabase.storage.from('identitas').getPublicUrl(fileName)
-        identitas_url = data.publicUrl
+      // Upload file-file baru
+      if (identitasFiles.length > 0) {
+        const uploadPromises = identitasFiles.map(async (file) => {
+          const ext = file.name.split('.').pop()
+          const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+          const { error: uploadError } = await supabase.storage
+            .from('identitas')
+            .upload(fileName, file, { upsert: true })
+          if (uploadError) throw uploadError
+          const { data } = supabase.storage.from('identitas').getPublicUrl(fileName)
+          return data.publicUrl
+        })
+        const newUrls = await Promise.all(uploadPromises)
+        identitas_url = [...identitas_url, ...newUrls]
       }
 
       const mulai = editData ? new Date(editData.jam_mulai) : new Date()
@@ -94,7 +124,7 @@ export default function FormPelanggan({ editData, karyawanList, psUnits, onSucce
       const payload = {
         nama: form.nama.trim(),
         no_telepon: form.no_telepon.trim(),
-        identitas_url,
+        identitas_url: identitas_url.length > 0 ? identitas_url : null,
         ps_id: form.ps_id,
         jumlah_jam: jumlahJam,
         jam_mulai: mulai.toISOString(),
@@ -155,61 +185,117 @@ export default function FormPelanggan({ editData, karyawanList, psUnits, onSucce
 
       {/* Upload Identitas */}
       <div>
-        <label className="block text-sm text-gray-400 mb-1.5">Upload Identitas (foto/video)</label>
-        <div className="border-2 border-dashed border-gray-600 rounded-xl p-4 hover:border-purple-500 transition-colors">
-          {identitasPreview ? (
-            <div className="relative">
-              {identitasPreview.includes('.mp4') || identitasPreview.includes('video') || identitasFile?.type.startsWith('video') ? (
-                <video src={identitasPreview} className="w-full max-h-32 object-cover rounded-lg" controls />
-              ) : (
-                <img src={identitasPreview} alt="Identitas" className="w-full max-h-32 object-cover rounded-lg" />
-              )}
-              <button
-                type="button"
-                onClick={() => { setIdentitasFile(null); setIdentitasPreview(null) }}
-                className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-500"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ) : (
-            <label className="flex flex-col items-center gap-2 cursor-pointer">
-              <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span className="text-gray-500 text-sm">Klik untuk upload foto/video KTP atau identitas lain</span>
-              <input
-                type="file"
-                accept="image/*,video/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </label>
-          )}
-        </div>
+        <label className="block text-sm text-gray-400 mb-1.5">
+          Upload Identitas
+          <span className="text-gray-600 ml-1">(foto/video, bisa lebih dari 1)</span>
+        </label>
+
+        {/* Preview file yang sudah ada (edit mode) */}
+        {existingUrls.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            {existingUrls.map((url, i) => (
+              <div key={url} className="relative group rounded-lg overflow-hidden border border-gray-700">
+                {isVideo(url) ? (
+                  <video src={url} className="w-full h-20 object-cover" />
+                ) : (
+                  <img src={url} alt={`Identitas ${i + 1}`} className="w-full h-20 object-cover" />
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <button type="button" onClick={() => removeExistingUrl(i)}
+                    className="bg-red-600 text-white rounded-full p-1 hover:bg-red-500">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <span className="absolute bottom-1 left-1 text-xs bg-black/60 text-white px-1 rounded">
+                  {isVideo(url) ? '🎥' : '🖼️'} {i + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Preview file baru */}
+        {identitasPreviews.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            {identitasPreviews.map((preview, i) => (
+              <div key={preview} className="relative group rounded-lg overflow-hidden border border-purple-700">
+                {isVideo(preview, identitasFiles[i]) ? (
+                  <video src={preview} className="w-full h-20 object-cover" />
+                ) : (
+                  <img src={preview} alt={`Upload ${i + 1}`} className="w-full h-20 object-cover" />
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <button type="button" onClick={() => removeNewFile(i)}
+                    className="bg-red-600 text-white rounded-full p-1 hover:bg-red-500">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <span className="absolute bottom-1 left-1 text-xs bg-purple-700/80 text-white px-1 rounded">
+                  Baru {i + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tombol tambah file */}
+        <label className="flex items-center gap-3 border-2 border-dashed border-gray-600 rounded-xl px-4 py-3 hover:border-purple-500 transition-colors cursor-pointer">
+          <svg className="w-6 h-6 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span className="text-gray-500 text-sm">
+            {existingUrls.length + identitasPreviews.length > 0
+              ? `${existingUrls.length + identitasPreviews.length} file dipilih — klik untuk tambah lagi`
+              : 'Klik untuk upload foto/video KTP atau identitas lain'}
+          </span>
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
       </div>
 
       {/* Pilih PS */}
       <div>
         <label className="block text-sm text-gray-400 mb-1.5">Pilih PS *</label>
         <div className="grid grid-cols-5 gap-2">
-          {psUnits.map((ps) => (
-            <button
-              key={ps.id}
-              type="button"
-              onClick={() => setForm({ ...form, ps_id: ps.id })}
-              className={`py-3 rounded-xl border font-medium text-sm transition-all ${
-                form.ps_id === ps.id
-                  ? 'bg-purple-600 border-purple-500 text-white'
-                  : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-purple-500'
-              }`}
-            >
-              <div>{ps.nama}</div>
-              <div className="text-xs opacity-70">{formatRupiah(ps.harga_per_jam)}/jam</div>
-            </button>
-          ))}
+          {psUnits.map((ps) => {
+            const total = ps.jumlah_unit ?? 1
+            const dipakai = ps.sedang_dipakai ?? 0
+            const tersedia = Math.max(0, total - dipakai)
+            const penuh = tersedia === 0 && !editData // saat edit, tetap bisa pilih PS yang sama
+            const isSelected = form.ps_id === ps.id
+            return (
+              <button
+                key={ps.id}
+                type="button"
+                disabled={penuh}
+                onClick={() => !penuh && setForm({ ...form, ps_id: ps.id })}
+                className={`py-3 rounded-xl border font-medium text-sm transition-all flex flex-col items-center gap-0.5
+                  ${isSelected
+                    ? 'bg-purple-600 border-purple-500 text-white'
+                    : penuh
+                      ? 'bg-gray-800/40 border-gray-700 text-gray-600 cursor-not-allowed'
+                      : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-purple-500'
+                  }`}
+              >
+                <span>{ps.nama}</span>
+                <span className="text-xs opacity-70">{formatRupiah(ps.harga_per_jam)}/jam</span>
+                <span className={`text-[10px] font-semibold mt-0.5 ${
+                  isSelected ? 'text-purple-200' : penuh ? 'text-red-500' : 'text-green-400'
+                }`}>
+                  {penuh ? '🔴 Penuh' : `${tersedia}/${total}`}
+                </span>
+              </button>
+            )
+          })}
         </div>
         {errors.ps_id && <p className="text-red-400 text-xs mt-1">{errors.ps_id}</p>}
       </div>

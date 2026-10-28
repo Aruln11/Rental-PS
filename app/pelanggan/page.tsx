@@ -19,21 +19,42 @@ export default function PelangganPage() {
   const [selesaiData, setSelesaiData] = useState<Pelanggan | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('semua')
+  const [galeriData, setGaleriData] = useState<{ nama: string; urls: string[] } | null>(null)
+  const [galeriIdx, setGaleriIdx] = useState(0)
   const { toasts, addToast, removeToast } = useToast()
+
+  // Normalisasi identitas_url — data lama bisa berupa string, bukan array
+  const toUrlArray = (val: string[] | string | null | undefined): string[] => {
+    if (!val) return []
+    if (Array.isArray(val)) return val
+    return [val]
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [{ data: pel }, { data: kar }, { data: ps }] = await Promise.all([
+    const [{ data: pel }, { data: kar }, { data: ps }, { data: aktif }] = await Promise.all([
       supabase
         .from('pelanggan')
         .select('*, ps_units(*), karyawan(*)')
         .order('created_at', { ascending: false }),
       supabase.from('karyawan').select('*').order('nama'),
       supabase.from('ps_units').select('*').order('nama'),
+      supabase.from('pelanggan').select('ps_id').eq('status', 'aktif'),
     ])
     if (pel) setPelangganList(pel)
     if (kar) setKaryawanList(kar)
-    if (ps) setPsUnits(ps)
+    if (ps) {
+      // Hitung berapa unit sedang dipakai per PS
+      const pemakaian: Record<string, number> = {}
+      ;(aktif ?? []).forEach((t: { ps_id: string }) => {
+        pemakaian[t.ps_id] = (pemakaian[t.ps_id] ?? 0) + 1
+      })
+      const enriched = (ps as PsUnit[]).map(p => ({
+        ...p,
+        sedang_dipakai: pemakaian[p.id] ?? 0,
+      }))
+      setPsUnits(enriched)
+    }
     setLoading(false)
   }, [])
 
@@ -176,6 +197,7 @@ export default function PelangganPage() {
               <thead>
                 <tr className="border-b border-gray-700 bg-gray-800/50">
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Pelanggan</th>
+                  <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Identitas</th>
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">PS</th>
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Waktu</th>
                   <th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Mulai</th>
@@ -196,14 +218,68 @@ export default function PelangganPage() {
                         <p className="text-gray-500 text-xs">{p.no_telepon}</p>
                       </div>
                     </td>
+                    {/* Identitas thumbnail */}
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const urls = toUrlArray(p.identitas_url)
+                        return urls.length > 0 ? (
+                          <button
+                            onClick={() => { setGaleriData({ nama: p.nama, urls }); setGaleriIdx(0) }}
+                            className="relative group flex-shrink-0"
+                            title="Lihat identitas"
+                          >
+                            {urls[0].match(/\.(mp4|webm|mov)$/i) ? (
+                              <div className="w-10 h-10 rounded-lg bg-gray-800 border border-gray-600 flex items-center justify-center group-hover:border-purple-500 transition-colors">
+                                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            ) : (
+                              <img
+                                src={urls[0]}
+                                alt="Identitas"
+                                className="w-10 h-10 rounded-lg object-cover border border-gray-600 group-hover:border-purple-500 transition-colors"
+                              />
+                            )}
+                            {urls.length > 1 && (
+                              <span className="absolute -top-1.5 -right-1.5 bg-purple-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                                {urls.length}
+                              </span>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-gray-600 text-xs">—</span>
+                        )
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-purple-400 font-medium">{p.ps_units?.nama}</td>
                     <td className="px-4 py-3">
                       <span className="bg-purple-900/30 text-purple-300 border border-purple-700 px-2 py-1 rounded-lg text-sm font-medium">
                         {p.jumlah_jam} jam
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-300 text-sm">{formatDateTime(p.jam_mulai)}</td>
-                    <td className="px-4 py-3 text-gray-300 text-sm">{formatDateTime(p.jam_selesai)}</td>
+                    <td className="px-4 py-3 text-gray-300 text-sm whitespace-nowrap">
+                      {(() => {
+                        const d = new Date(p.jam_mulai)
+                        return (
+                          <div>
+                            <p>{new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(d)}</p>
+                            <p className="text-gray-300 text-xs">{new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).format(d)}</p>
+                          </div>
+                        )
+                      })()}
+                    </td>
+                    <td className="px-4 py-3 text-gray-300 text-sm whitespace-nowrap">
+                      {(() => {
+                        const d = new Date(p.jam_selesai)
+                        return (
+                          <div>
+                            <p>{new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(d)}</p>
+                            <p className="text-gray-300 text-xs">{new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).format(d)}</p>
+                          </div>
+                        )
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-white font-medium">{formatRupiah(p.total)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-lg text-xs font-medium ${p.metode_bayar === 'qris' ? 'bg-blue-900/50 text-blue-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
@@ -306,6 +382,88 @@ export default function PelangganPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Galeri Identitas Modal */}
+      <Modal
+        isOpen={!!galeriData}
+        onClose={() => setGaleriData(null)}
+        title={`Identitas — ${galeriData?.nama}`}
+        size="lg"
+      >
+        {galeriData && (
+          <div className="space-y-4">
+            {/* Viewer utama */}
+            <div className="relative bg-black rounded-xl overflow-hidden flex items-center justify-center min-h-64">
+              {galeriData.urls[galeriIdx].match(/\.(mp4|webm|mov)$/i) ? (
+                <video
+                  key={galeriData.urls[galeriIdx]}
+                  src={galeriData.urls[galeriIdx]}
+                  controls
+                  className="max-h-96 w-full object-contain"
+                />
+              ) : (
+                <img
+                  src={galeriData.urls[galeriIdx]}
+                  alt={`Identitas ${galeriIdx + 1}`}
+                  className="max-h-96 w-full object-contain"
+                />
+              )}
+
+              {/* Navigasi prev/next */}
+              {galeriData.urls.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setGaleriIdx(i => (i - 1 + galeriData.urls.length) % galeriData.urls.length)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white rounded-full p-2 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setGaleriIdx(i => (i + 1) % galeriData.urls.length)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white rounded-full p-2 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  {/* Counter */}
+                  <span className="absolute bottom-2 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+                    {galeriIdx + 1} / {galeriData.urls.length}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Strip thumbnail */}
+            {galeriData.urls.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {galeriData.urls.map((url, i) => (
+                  <button
+                    key={url}
+                    onClick={() => setGaleriIdx(i)}
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
+                      i === galeriIdx ? 'border-purple-500' : 'border-gray-700 hover:border-gray-500'
+                    }`}
+                  >
+                    {url.match(/\.(mp4|webm|mov)$/i) ? (
+                      <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    ) : (
+                      <img src={url} alt={`Thumb ${i + 1}`} className="w-full h-full object-cover" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   )

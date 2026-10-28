@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS pelanggan (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   nama TEXT NOT NULL,
   no_telepon TEXT NOT NULL,
-  identitas_url TEXT,
+  identitas_url TEXT[],
   ps_id UUID NOT NULL REFERENCES ps_units(id),
   jumlah_jam INTEGER NOT NULL,
   jam_mulai TIMESTAMPTZ NOT NULL,
@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS pelanggan (
   status TEXT NOT NULL DEFAULT 'aktif' CHECK (status IN ('aktif', 'telat', 'selesai')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Jika tabel sudah ada sebelumnya, jalankan migration ini:
+-- ALTER TABLE pelanggan ALTER COLUMN identitas_url TYPE TEXT[] USING CASE WHEN identitas_url IS NULL THEN NULL ELSE ARRAY[identitas_url] END;
 
 -- Storage bucket untuk identitas
 INSERT INTO storage.buckets (id, name, public) VALUES ('identitas', 'identitas', true)

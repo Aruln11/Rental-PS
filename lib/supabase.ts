@@ -18,13 +18,14 @@ export type PsUnit = {
   nama: string
   harga_per_jam: number
   jumlah_unit: number
+  sedang_dipakai?: number
 }
 
 export type Pelanggan = {
   id: string
   nama: string
   no_telepon: string
-  identitas_url: string | null
+  identitas_url: string[] | null
   ps_id: string
   jumlah_jam: number
   jam_mulai: string

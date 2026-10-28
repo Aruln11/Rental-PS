@@ -296,12 +296,12 @@ export default function KaryawanPage() {
                 <p className="text-white font-bold text-sm">{formatRupiah(totalTransaksi)}</p>
               </div>
               <div className="bg-yellow-900/30 border border-yellow-700 rounded-xl p-3">
-                <p className="text-gray-400 text-xs">Komisi Pending</p>
+                <p className="text-gray-400 text-xs">Bisa Ditarik</p>
                 <p className="text-yellow-400 font-bold text-sm">{formatRupiah(komisiPending)}</p>
                 <p className="text-gray-500 text-xs mt-0.5">{belumDibayarCount} transaksi</p>
               </div>
               <div className="bg-green-900/30 border border-green-700 rounded-xl p-3">
-                <p className="text-gray-400 text-xs">Komisi Lunas</p>
+                <p className="text-gray-400 text-xs">Sudah Ditarik</p>
                 <p className="text-green-400 font-bold text-sm">{formatRupiah(komisiLunas)}</p>
               </div>
             </div>
